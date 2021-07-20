@@ -42,6 +42,11 @@ namespace cardsales
         static string targetDateStart = string.Empty;
         static string targetDateEnd = string.Empty;
 
+        // Selenium 세팅
+        static ChromeDriverService service = null;
+        static ChromeOptions option = null;
+        static ChromeDriver driver = null;
+
         static void Main(string[] args)
         {
             if (args.Length == 0) // 자동 (날짜 인수 없을 때)
@@ -206,6 +211,7 @@ namespace cardsales
             //else if (args.Length == 1) // 수동 (날짜 인수 1개 있을 때 : 특정 날짜만)
             //{
             //    _targetDate = args[0].ToString();
+            //    ParsingData(_targetDate);
             //}
             //else if (args.Length == 2) // 수동 (날짜 인수 2개 있을 때 : 특정 기간동안)
             //{
@@ -307,19 +313,33 @@ namespace cardsales
             string[] dr = new string[4];
             #endregion
 
-            // Selenium 세팅
-            ChromeDriverService service = null;
-            ChromeOptions option = null;
-            ChromeDriver driver = null;
-            service = ChromeDriverService.CreateDefaultService();
-            service.HideCommandPromptWindow = true;
-            option = new ChromeOptions();
-            option.AddArguments("disable-gpu", "headless");
-            driver = new ChromeDriver(service, option);
-            driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(3);
+            try // ChromeDriver 오류 방지용 try 구문
+            {
+                // Selenium 세팅
+                service = ChromeDriverService.CreateDefaultService();
+                service.HideCommandPromptWindow = true;
+                option = new ChromeOptions();
+                option.AddArguments("disable-gpu", "headless", "no-sandbox");
+                driver = new ChromeDriver(service, option, TimeSpan.FromMinutes(3));
+                driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(3);
+            }
+            catch (Exception ex)
+            {
+                WriteLog("*ChromeDriver 오류* " + ex.Message);
+                driver.Quit(); // ChromeDriver 종료
+            }
 
-            // 여신금융협회 로그인 -> 입금내역 조회 페이지로 이동
-            driver.Url = "https://www.cardsales.or.kr/signin";
+            try // 인터넷 오류 방지용 try 구문
+            {
+                // 여신금융협회 로그인 -> 입금내역 조회 페이지로 이동
+                driver.Url = "https://www.cardsales.or.kr/signin";
+            }
+            catch (Exception ex)
+            {
+                WriteLog("*여신금융협회 접속 오류* " + ex.Message);
+                driver.Quit(); // ChromeDriver 종료
+            }
+
             var element = driver.FindElementById("j_username");
             element.SendKeys("*");
             element = driver.FindElementById("j_password");
@@ -1488,6 +1508,48 @@ namespace cardsales
             #endregion
 
             WriteLog(_targetDate + " 입금내역 파싱 완료");
+            driver.Quit(); // ChromeDriver 종료
+        }
+
+        public static void WriteLog(string _message)
+        {
+            string filePath = Directory.GetCurrentDirectory() + @"\Logs\" + DateTime.Today.ToString("yyyyMMdd") + ".log";
+            string dirPath = Directory.GetCurrentDirectory() + @"\Logs";
+            string temp;
+
+            DirectoryInfo dirInfo = new DirectoryInfo(dirPath);
+            FileInfo fileInfo = new FileInfo(filePath);
+
+            try
+            {
+                if (dirInfo.Exists != true)
+                {
+                    Directory.CreateDirectory(dirPath);
+                }
+
+                if (fileInfo.Exists != true)
+                {
+                    using (StreamWriter sw = new StreamWriter(filePath))
+                    {
+                        temp = string.Format("[{0}] {1}", DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), _message);
+                        sw.WriteLine(temp);
+                        sw.Close();
+                    }
+                }
+                else
+                {
+                    using (StreamWriter sw = File.AppendText(filePath))
+                    {
+                        temp = string.Format("[{0}] {1}", DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), _message);
+                        sw.WriteLine(temp);
+                        sw.Close();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
         }
 
         public static bool RFCInfoSet(string _rfcName, string _rfcFunction)
@@ -1584,47 +1646,6 @@ namespace cardsales
             }
 
             return true;
-        }
-
-        public static void WriteLog(string _message)
-        {
-            string filePath = Directory.GetCurrentDirectory() + @"\Logs\" + DateTime.Today.ToString("yyyyMMdd") + ".log";
-            string dirPath = Directory.GetCurrentDirectory() + @"\Logs";
-            string temp;
-
-            DirectoryInfo dirInfo = new DirectoryInfo(dirPath);
-            FileInfo fileInfo = new FileInfo(filePath);
-
-            try
-            {
-                if (dirInfo.Exists != true)
-                {
-                    Directory.CreateDirectory(dirPath);
-                }
-
-                if (fileInfo.Exists != true)
-                {
-                    using (StreamWriter sw = new StreamWriter(filePath))
-                    {
-                        temp = string.Format("[{0}] {1}", DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), _message);
-                        sw.WriteLine(temp);
-                        sw.Close();
-                    }
-                }
-                else
-                {
-                    using (StreamWriter sw = File.AppendText(filePath))
-                    {
-                        temp = string.Format("[{0}] {1}", DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), _message);
-                        sw.WriteLine(temp);
-                        sw.Close();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
         }
     }
 }
